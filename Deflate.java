@@ -13,14 +13,16 @@ public class Deflate {
 
 class LZ77Code {
 }
-class HoffmanCode {
+class HuffmanTree {
 }
-class HoffmanNode{
+class HuffmanNode{
     char a;
-    HoffmanNode left;
-    HoffmanNode right;
-    public HoffmanNode(char a){
+    int freq;
+    HuffmanNode left;
+    HuffmanNode right;
+    public HuffmanNode(char a, int freq){
         this.a = a;
+        this.freq = freq;
         this.left = null;
         this.right = null;
     }
