@@ -27,11 +27,8 @@ public class Main {
 }
 class Deflate {
     public void code(byte[] data){
-        LZ77Code lz77 = new LZ77Code();
         HuffmanTree ht = new HuffmanTree(data);
     }
-}
-class LZ77Code {
 }
 class HuffmanTree {
     private HuffmanNode main;
