@@ -12,33 +12,31 @@ public class Main {
             System.err.println(e);
         }
 
-        Deflate coder = new Deflate(data[]);
+        Deflate coder = new Deflate();
 
-        /*try{
-            DataOutputStream a = new DataOutputStream(new FileOutputStream("a.dat"));
-            byte b = 1;
-            a.writeByte(b);
-            a.writeByte(3);
-            a.close();
-        }catch (Exception e){
-            System.err.println(e);
-        }*/
+        // hz, mnogo methods
     }
 }
 class Deflate {
     public void code(byte[] data){
-        HuffmanTree ht = new HuffmanTree(data);
+        HuffmanTree ht = new HuffmanTree();
     }
+    // hz, mnogo methods
 }
 class HuffmanTree {
-    private HuffmanNode main;
-    private HashMap<Byte, Integer> map = new HashMap<Byte, Integer>();
-    public byte[] data;
-    public HuffmanTree(byte[] data){
-        this.data = data;
+    public HuffmanNode main;
+    private HashMap<Byte, String> data = new HashMap<Byte, String>();
+    private void build(){                               // build a tree ( get codes for each element to hashmap )
+        
+    }
+    public void add(byte character, int freq){  // add to tree
+    }
+
+    public String getCode(byte a){               // return code of a byte
+        return data.get(a);
     }
 }
-class HuffmanNode{
+class HuffmanNode{               
     char a;
     int freq;
     HuffmanNode left;
@@ -55,7 +53,7 @@ class BetterInputStream extends InputStream{
     public BetterInputStream(String path) throws FileNotFoundException{
         this.fis = new FileInputStream(path);
     }
-    public int read(){
+    public int read(){    // basic read
         int a = 0;
 
         try{
@@ -67,10 +65,9 @@ class BetterInputStream extends InputStream{
         }
         return a;
     }
-    public void read(int i){
-        // block size
+    public void read(int i){  // read + block size
     }
-    public void close() throws IOException{
+    public void close() throws IOException{ // close
         fis.close();
     }
 }
@@ -79,13 +76,16 @@ class BetterOutputStream extends OutputStream {
     public BetterOutputStream(String path) throws FileNotFoundException{
         this.fos = new FileOutputStream(path);
     }
-    public void write(int i){
+    public void write(int i){ // write single int
 
     }
-    public void write(int[] i){
+    public void write(byte i){ //write a byte
 
     }
-    public void close() throws IOException{
+    public void write(byte[] i){ // write a byte array
+
+    }
+    public void close() throws IOException{ // close
         fos.close();
     }
 }
