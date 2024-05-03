@@ -24,16 +24,25 @@ class Deflate {
         File f = new File(filename);
         
         try{
-            FileInputStream fis = new FileInputStream(f);
-            PrintWriter fos = new PrintWriter(new FileOutputStream(f+".defl"));
-
-            byte[] buff = fis.readNBytes(32768);
-            //LZ77 lz77coder = new LZ77(buff);
+            BufferedInputStream fis = new BufferedInputStream(new FileInputStream(f));
+            PrintWriter fos = new PrintWriter(new FileOutputStream(f+".dat"));
+            byte[] buff = new byte[4000];
+            while ((fis.read(buff)) != -1) {
+                LZ77 lz77coder = new LZ77();
+                Vector<String> lz = lz77coder.lz77code(buff);
+                Huffman huff = new Huffman();
+                List<Byte> done = huff.code(lz, true);
+                for(byte x : done){
+                    fos.write(x);
+                }
+            }/* 
             LZ77 lz77coder = new LZ77();
             Vector<String> lz = lz77coder.lz77code(buff);
             Huffman huff = new Huffman();
             List<Byte> done = huff.code(lz, true);
-            System.out.println(done);
+            for(byte x : done){
+                fos.write(x);
+            }*/
             fis.close();
             fos.close();
         }
@@ -63,7 +72,6 @@ class LZ77{
         for(byte x : buff){                         // moving byte[] to vector
             ans.add(String.valueOf((char)x));
         }
-
         for(int i = 258; i >=3; i--){               // max match length
             Vector<String> ans2 = new Vector<String>();
             int matchIndex = 0, tempIndex = 0;
@@ -81,7 +89,6 @@ class LZ77{
                             codedString = codedString.substring(1);
                         }
                     }
-
                     String concat = currentMatch + indx;
                     if (currentMatch.length() == i) {                               // если длина совпадения наконец попала в размер окна
                         ans2.add(codedString);
@@ -89,7 +96,10 @@ class LZ77{
                         searchBuffer.append(concat);                                            // append to the search buffer
                         currentMatch = "";
                         matchIndex = 0;
+                        
+                        
                     } else {                                                          // разбор буфера ( костыль )
+                        
                         currentMatch = concat; matchIndex = -1;
                         while (currentMatch.length() > 1 && matchIndex == -1) {
                             if(!currentMatch.startsWith("~")){
@@ -98,9 +108,16 @@ class LZ77{
                                 currentMatch = currentMatch.substring(1, currentMatch.length());
                                 matchIndex = searchBuffer.indexOf(currentMatch);
                             }else{
-                                ans2.add(String.valueOf(currentMatch));
-                                currentMatch = currentMatch.substring(15, currentMatch.length());
-                                matchIndex = searchBuffer.indexOf(currentMatch);
+                                if(currentMatch.length() == 16){
+                                    ans2.add(String.valueOf(currentMatch.substring(0,15)));
+                                    ans2.add(String.valueOf(currentMatch.substring(15,16)));
+                                    currentMatch = currentMatch.substring(15, currentMatch.length());
+                                    matchIndex = searchBuffer.indexOf(currentMatch);
+                                }else{
+                                    ans2.add(String.valueOf(currentMatch));
+                                    currentMatch = currentMatch.substring(15, currentMatch.length());
+                                    matchIndex = searchBuffer.indexOf(currentMatch);
+                                }
                             }
                         }
                     }
@@ -130,26 +147,33 @@ class Huffman {
 
     public List<Byte> code(Vector<String>data, boolean end){
         List<Byte> block = new ArrayList<>();
+        data.add("256");
         String buffer = end ? "1" : "0";            // чтение справа налево
         for(String s : data){
-            buffer = getCode(s) + buffer;
-            if(buffer.length() > 8){
-                block.add((byte)Integer.parseInt(buffer.substring(0, 9)));
+            buffer =  buffer + getCode(s);
+            while (buffer.length() > 8) {
+                block.add((byte)Integer.parseInt(buffer.substring(0, 9),2));
                 buffer = buffer.substring(9);
             }
         }
-        buffer = "0000000" + buffer;
         return block;
     }
     public String getCode(String a){
         int litValue = 0;
+        String completeCoded = "";
+        if(a.equals("256")){
+            return "0000000";
+        }
         if(a.length() == 1){            // 0 - 255
             char[] buf = a.toCharArray();
             byte b = (byte)buf[0];
             litValue = b & 0xFF;
         }
+
+        // problem
+
+
         if(a.length() > 1){
-            String value = "";
             String[] buf = a.split("~");
             List<String>duo = new ArrayList<>();
             for(String b : buf){
@@ -217,37 +241,49 @@ class Huffman {
             if(mov == 4){movBinary = "00011";}
             if(mov >=5 && mov <=6){movBinary = "00100"; movBinaryExtra = mov == 5 ? "0" : "1";}
             if(mov >=7 && mov <=8){movBinary = "00101"; movBinaryExtra = mov == 7 ? "0" : "1";}
-            if(mov >=9 && mov <=12){movBinary = "00110"; movBinaryExtra = Integer.toBinaryString(mov-9);}
-            if(mov >=13 && mov <=16){movBinary = "00111"; movBinaryExtra = Integer.toBinaryString(mov-13);}
-            if(mov >=17 && mov <=24){movBinary = "01000"; movBinaryExtra = Integer.toBinaryString(mov-17);}
-            if(mov >=25 && mov <=32){movBinary = "01001"; movBinaryExtra = Integer.toBinaryString(mov-25);}
-            if(mov >=33 && mov <=48){movBinary = "01010"; movBinaryExtra = Integer.toBinaryString(mov-33);}
-            if(mov >=49 && mov <=64){movBinary = "01011"; movBinaryExtra = Integer.toBinaryString(mov-49);}
-            if(mov >=65 && mov <=96){movBinary = "01100"; movBinaryExtra = Integer.toBinaryString(mov-65);}
-            if(mov >=97 && mov <=128){movBinary = "01101"; movBinaryExtra = Integer.toBinaryString(mov-97);}
-            if(mov >=129 && mov <=192){movBinary = "01110"; movBinaryExtra = Integer.toBinaryString(mov-129);}
-            if(mov >=193 && mov <=256){movBinary = "01111"; movBinaryExtra = Integer.toBinaryString(mov-193);}
-            if(mov >=257 && mov <=384){movBinary = "10000"; movBinaryExtra = Integer.toBinaryString(mov-257);}
-            if(mov >=385 && mov <=512){movBinary = "10001"; movBinaryExtra = Integer.toBinaryString(mov-385);}
-            if(mov >=513 && mov <=768){movBinary = "10010"; movBinaryExtra = Integer.toBinaryString(mov-513);}
-            if(mov >=769 && mov <=1024){movBinary = "10011"; movBinaryExtra = Integer.toBinaryString(mov-769);}
-            if(mov >=1025 && mov <=1536){movBinary = "10100"; movBinaryExtra = Integer.toBinaryString(mov-1025);}
-            if(mov >=1537 && mov <=2048){movBinary = "10101"; movBinaryExtra = Integer.toBinaryString(mov-1537);}
-            if(mov >=2049 && mov <=3072){movBinary = "10110"; movBinaryExtra = Integer.toBinaryString(mov-2049);}
-            if(mov >=3073 && mov <=4096){movBinary = "10111"; movBinaryExtra = Integer.toBinaryString(mov-3073);}
-            if(mov >=4097 && mov <=6144){movBinary = "11000"; movBinaryExtra = Integer.toBinaryString(mov-4097);}
-            if(mov >=6145 && mov <=8192){movBinary = "11001"; movBinaryExtra = Integer.toBinaryString(mov-6145);}
-            if(mov >=8193 && mov <=12288){movBinary = "11010"; movBinaryExtra = Integer.toBinaryString(mov-8193);}
-            if(mov >=12289 && mov <=16384){movBinary = "11011"; movBinaryExtra = Integer.toBinaryString(mov-12289);}
-            if(mov >=16385 && mov <=24576){movBinary = "11100"; movBinaryExtra = Integer.toBinaryString(mov-16385);}
-            if(mov >=24577 && mov <=32768){movBinary = "11101"; movBinaryExtra = Integer.toBinaryString(mov-24577);}
-            
-
-            System.out.println(duo);
-            System.out.println(dopBit);
-            System.out.println(" --- ");
+            if(mov >=9 && mov <=12){movBinary = "00110"; movBinaryExtra = Integer.toBinaryString(mov-9); movBinaryExtra = toBitCount(movBinaryExtra, 2);}
+            if(mov >=13 && mov <=16){movBinary = "00111"; movBinaryExtra = Integer.toBinaryString(mov-13); movBinaryExtra = toBitCount(movBinaryExtra, 2);}
+            if(mov >=17 && mov <=24){movBinary = "01000"; movBinaryExtra = Integer.toBinaryString(mov-17); movBinaryExtra = toBitCount(movBinaryExtra, 3);}
+            if(mov >=25 && mov <=32){movBinary = "01001"; movBinaryExtra = Integer.toBinaryString(mov-25); movBinaryExtra = toBitCount(movBinaryExtra, 3);}
+            if(mov >=33 && mov <=48){movBinary = "01010"; movBinaryExtra = Integer.toBinaryString(mov-33); movBinaryExtra = toBitCount(movBinaryExtra, 4);}
+            if(mov >=49 && mov <=64){movBinary = "01011"; movBinaryExtra = Integer.toBinaryString(mov-49); movBinaryExtra = toBitCount(movBinaryExtra, 4);}
+            if(mov >=65 && mov <=96){movBinary = "01100"; movBinaryExtra = Integer.toBinaryString(mov-65); movBinaryExtra = toBitCount(movBinaryExtra, 5);}
+            if(mov >=97 && mov <=128){movBinary = "01101"; movBinaryExtra = Integer.toBinaryString(mov-97); movBinaryExtra = toBitCount(movBinaryExtra, 5);}
+            if(mov >=129 && mov <=192){movBinary = "01110"; movBinaryExtra = Integer.toBinaryString(mov-129); movBinaryExtra = toBitCount(movBinaryExtra, 6);}
+            if(mov >=193 && mov <=256){movBinary = "01111"; movBinaryExtra = Integer.toBinaryString(mov-193); movBinaryExtra = toBitCount(movBinaryExtra, 6);}
+            if(mov >=257 && mov <=384){movBinary = "10000"; movBinaryExtra = Integer.toBinaryString(mov-257); movBinaryExtra = toBitCount(movBinaryExtra, 7);}
+            if(mov >=385 && mov <=512){movBinary = "10001"; movBinaryExtra = Integer.toBinaryString(mov-385); movBinaryExtra = toBitCount(movBinaryExtra, 7);}
+            if(mov >=513 && mov <=768){movBinary = "10010"; movBinaryExtra = Integer.toBinaryString(mov-513); movBinaryExtra = toBitCount(movBinaryExtra, 8);}
+            if(mov >=769 && mov <=1024){movBinary = "10011"; movBinaryExtra = Integer.toBinaryString(mov-769); movBinaryExtra = toBitCount(movBinaryExtra, 8);}
+            if(mov >=1025 && mov <=1536){movBinary = "10100"; movBinaryExtra = Integer.toBinaryString(mov-1025); movBinaryExtra = toBitCount(movBinaryExtra, 9);}
+            if(mov >=1537 && mov <=2048){movBinary = "10101"; movBinaryExtra = Integer.toBinaryString(mov-1537); movBinaryExtra = toBitCount(movBinaryExtra, 9);}
+            if(mov >=2049 && mov <=3072){movBinary = "10110"; movBinaryExtra = Integer.toBinaryString(mov-2049); movBinaryExtra = toBitCount(movBinaryExtra, 10);}
+            if(mov >=3073 && mov <=4096){movBinary = "10111"; movBinaryExtra = Integer.toBinaryString(mov-3073); movBinaryExtra = toBitCount(movBinaryExtra, 10);}
+            if(mov >=4097 && mov <=6144){movBinary = "11000"; movBinaryExtra = Integer.toBinaryString(mov-4097); movBinaryExtra = toBitCount(movBinaryExtra, 11);}
+            if(mov >=6145 && mov <=8192){movBinary = "11001"; movBinaryExtra = Integer.toBinaryString(mov-6145); movBinaryExtra = toBitCount(movBinaryExtra, 11);}
+            if(mov >=8193 && mov <=12288){movBinary = "11010"; movBinaryExtra = Integer.toBinaryString(mov-8193); movBinaryExtra = toBitCount(movBinaryExtra, 12);}
+            if(mov >=12289 && mov <=16384){movBinary = "11011"; movBinaryExtra = Integer.toBinaryString(mov-12289); movBinaryExtra = toBitCount(movBinaryExtra, 12);}
+            if(mov >=16385 && mov <=24576){movBinary = "11100"; movBinaryExtra = Integer.toBinaryString(mov-16385); movBinaryExtra = toBitCount(movBinaryExtra, 13);}
+            if(mov >=24577 && mov <=32768){movBinary = "11101"; movBinaryExtra = Integer.toBinaryString(mov-24577); movBinaryExtra = toBitCount(movBinaryExtra, 13);}
             // lit + dop bit + 5 bit mov + dop bit mov
+            String litBinary = "";
+            
+            if(litValue >= 256 && litValue <= 279){
+                litBinary = Integer.toBinaryString(litValue-256);
+                litBinary = toBitCount(litBinary, 7);
+            }
+            if(litValue >= 280 && litValue <= 287){
+                litBinary = Integer.toBinaryString(litValue-88);
+            }
+            
+            //System.err.println(" ----- ");
+            //System.err.printf("[%s,%s]",len,mov);
+            //System.out.println();
+            //System.out.println(litValue + "/" + litBinary + "-" + dopBit + "-" + movBinary + "-" + movBinaryExtra);
+            //System.out.println(" --- ");
+            completeCoded = litBinary + dopBit + movBinary + movBinaryExtra;
         }
+        
         //  256 ignore
         //  257-264  -- длины, 3-10
         //  265-268  -- пары длин, от 11,12 до 17,18. Следующий бит позволяет выбрать число из пары
@@ -263,6 +299,12 @@ class Huffman {
         // Длина ( + доп биты из таблицы ) + Смещение 5 бит ( + доп биты из таблицы ) 
 
         
-        return "10101010";
+        return completeCoded;
+    }
+    private String toBitCount(String a, int cnt){
+        while(a.length() != cnt){
+            a = "0" + a;
+        }
+        return a;
     }
 }
