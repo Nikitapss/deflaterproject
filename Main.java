@@ -22,42 +22,42 @@ public class Main {
 class Deflate {
     public void code(String filename){
         File f = new File(filename);
-        
+        LZ77 lz77coder = new LZ77();
+        Huffman huff = new Huffman();
         try{
-            BufferedInputStream fis = new BufferedInputStream(new FileInputStream(f));
-            PrintWriter fos = new PrintWriter(new FileOutputStream(f+".dat"));
-            byte[] buff = new byte[4000];
-            while ((fis.read(buff)) != -1) {
-                LZ77 lz77coder = new LZ77();
+            //BufferedInputStream fis = new BufferedInputStream(new FileInputStream(f));
+            FileInputStream fis = new FileInputStream(f);
+            FileOutputStream fos = new FileOutputStream(f+".dat");
+            //int BLOCK_SIZE = 35000;
+            //byte[] buff = new byte[BLOCK_SIZE]; // нельзя менять тк лимит на сдвиг в хаффмане
+            while (true) {
+                byte[] buff = fis.readNBytes(35000);
+                if(buff.length == 0){
+                    break;
+                }
                 Vector<String> lz = lz77coder.lz77code(buff);
-                Huffman huff = new Huffman();
                 List<Byte> done = huff.code(lz, true);
                 for(byte x : done){
+                    System.out.println(x);
                     fos.write(x);
                 }
-            }/* 
-            LZ77 lz77coder = new LZ77();
-            Vector<String> lz = lz77coder.lz77code(buff);
-            Huffman huff = new Huffman();
-            List<Byte> done = huff.code(lz, true);
-            for(byte x : done){
-                fos.write(x);
-            }*/
+            }
             fis.close();
             fos.close();
         }
         catch(Exception e){
-            System.out.println(e);
+            System.out.println("In/Out file error"+ e);
         }
-        
-        
     }
 
     public void decode(String filename){
         File f = new File(filename);
+        LZ77 lz77coder = new LZ77();
+        Huffman huff = new Huffman();
         try{
-            FileInputStream fis = new FileInputStream(f);
-            FileOutputStream fos = new FileOutputStream(f+".defl");
+            FileInputStream fis = new FileInputStream(f+".dat");
+            FileOutputStream fos = new FileOutputStream("temp.dat");
+            huff.decode(fis,fos);
             fis.close();
             fos.close();
         }catch(Exception e){
@@ -72,70 +72,74 @@ class LZ77{
         for(byte x : buff){                         // moving byte[] to vector
             ans.add(String.valueOf((char)x));
         }
-        for(int i = 258; i >=3; i--){               // max match length
-            Vector<String> ans2 = new Vector<String>();
-            int matchIndex = 0, tempIndex = 0;
-            String currentMatch = "";
-            StringBuffer searchBuffer = new StringBuffer();
-            for(String indx : ans){                   // поиск
-                tempIndex = searchBuffer.indexOf(currentMatch + indx);
-                if (tempIndex != -1) {
-                    currentMatch += indx;
-                    matchIndex = tempIndex;
-                } else {
-                    String codedString = "~~~~~~~~~~~~"+matchIndex+"~"+currentMatch.length();     // кодировка строки под размер ( костыль )
-                    for(int q = 1; q <= 12; q++){
-                        if(codedString.length() > 15){
-                            codedString = codedString.substring(1);
-                        }
+        Vector<String> ans2 = new Vector<String>();
+        int matchIndex = 0, tempIndex = 0;
+        String currentMatch = "";
+        StringBuffer searchBuffer = new StringBuffer();
+        for(String indx : ans){                   // поиск           // fix later
+            tempIndex = searchBuffer.indexOf(currentMatch + indx);
+            if (tempIndex != -1) {
+                currentMatch += indx;
+                matchIndex = tempIndex;
+            } else {
+                String codedString = "~~~~~~~~~~~~"+matchIndex+"~"+currentMatch.length();     // кодировка строки под размер ( костыль )
+                for(int q = 1; q <= 12; q++){
+                    if(codedString.length() > 15){
+                        codedString = codedString.substring(1);
                     }
-                    String concat = currentMatch + indx;
-                    if (currentMatch.length() == i) {                               // если длина совпадения наконец попала в размер окна
-                        ans2.add(codedString);
-                        ans2.add(String.valueOf(indx));
-                        searchBuffer.append(concat);                                            // append to the search buffer
-                        currentMatch = "";
-                        matchIndex = 0;
-                        
-                        
-                    } else {                                                          // разбор буфера ( костыль )
-                        
-                        currentMatch = concat; matchIndex = -1;
-                        while (currentMatch.length() > 1 && matchIndex == -1) {
-                            if(!currentMatch.startsWith("~")){
-                                ans2.add(String.valueOf(currentMatch.charAt(0)));
-                                searchBuffer.append(currentMatch.charAt(0));
-                                currentMatch = currentMatch.substring(1, currentMatch.length());
+                }
+                String concat = currentMatch + indx;
+                if (currentMatch.length() >= 3) {                               // если длина совпадения >3
+                    ans2.add(codedString);
+                    ans2.add(String.valueOf(indx));
+                    searchBuffer.append(concat);                                            // append to the search buffer
+                    currentMatch = "";
+                    matchIndex = 0;
+                } else {                                                          // разбор буфера ( костыль )
+                    currentMatch = concat; matchIndex = -1;
+                    while (currentMatch.length() > 1 && matchIndex == -1) {
+                        if(!currentMatch.startsWith("~")){
+                            ans2.add(String.valueOf(currentMatch.charAt(0)));
+                            searchBuffer.append(currentMatch.charAt(0));
+                            currentMatch = currentMatch.substring(1, currentMatch.length());
+                            matchIndex = searchBuffer.indexOf(currentMatch);
+                        }else{
+                            if(currentMatch.length() == 16){
+                                ans2.add(String.valueOf(currentMatch.substring(0,15)));
+                                ans2.add(String.valueOf(currentMatch.substring(15,16)));
+                                currentMatch = currentMatch.substring(15, currentMatch.length());
                                 matchIndex = searchBuffer.indexOf(currentMatch);
                             }else{
-                                if(currentMatch.length() == 16){
-                                    ans2.add(String.valueOf(currentMatch.substring(0,15)));
-                                    ans2.add(String.valueOf(currentMatch.substring(15,16)));
-                                    currentMatch = currentMatch.substring(15, currentMatch.length());
-                                    matchIndex = searchBuffer.indexOf(currentMatch);
-                                }else{
-                                    ans2.add(String.valueOf(currentMatch));
-                                    currentMatch = currentMatch.substring(15, currentMatch.length());
-                                    matchIndex = searchBuffer.indexOf(currentMatch);
-                                }
+                                ans2.add(String.valueOf(currentMatch));
+                                currentMatch = currentMatch.substring(15, currentMatch.length());
+                                matchIndex = searchBuffer.indexOf(currentMatch);
                             }
                         }
                     }
                 }
             }
-            if (matchIndex != -1) {                                                                 // если застряло в конце
-                String codedString = "~~~~~~~~~~~~"+matchIndex+"~"+currentMatch.length();
-                    for(int q = 1; q <= 12; q++){
-                        if(codedString.length() > 15){
-                            codedString = codedString.substring(1);
-                        }
-                    }
-                if(matchIndex!= 0 && currentMatch.length() != 0) ans2.add(codedString);
-            }
-            ans = new Vector<>(ans2);
-            ans2.clear();
         }
-        return ans;
+        while (currentMatch != "") {
+            ans2.add(currentMatch.substring(0, 1));
+            currentMatch = currentMatch.substring(1);
+        }
+        
+        /*
+        System.out.println(currentMatch);
+        if(currentMatch.length() == 1){
+            ans2.add(currentMatch);
+        }
+        if (matchIndex != -1) {                                                                 // если застряло в конце
+            String codedString = "~~~~~~~~~~~~"+matchIndex+"~"+currentMatch.length();
+                for(int q = 1; q <= 12; q++){
+                    if(codedString.length() > 15){
+                        codedString = codedString.substring(1);
+                    }
+                }
+            if(matchIndex != 0) ans2.add(codedString);
+        }*/
+
+        return ans2;
         
     }
     public void lz77decode(){
@@ -156,8 +160,28 @@ class Huffman {
                 buffer = buffer.substring(9);
             }
         }
+        if(buffer.length() != 0){
+            buffer = toBitCount(buffer, 8);
+        }
+        block.add((byte)Integer.parseInt(buffer));
         return block;
     }
+
+    public void decode(FileInputStream fis, FileOutputStream fos){
+        int b = 0;
+        ///////////////
+        try{
+            while ((b = fis.read()) != -1){
+                    System.out.println(b);
+            }   
+        }catch(Exception e){
+            System.out.println("error reading a byte");
+        }
+    }
+
+
+
+
     public String getCode(String a){
         int litValue = 0;
         String completeCoded = "";
@@ -168,6 +192,8 @@ class Huffman {
             char[] buf = a.toCharArray();
             byte b = (byte)buf[0];
             litValue = b & 0xFF;
+            litValue = litValue <= 143 ? litValue + 0x30 : litValue + 256;
+            completeCoded = toBitCount(Integer.toBinaryString(litValue), 8);
         }
 
         // problem
@@ -235,7 +261,7 @@ class Huffman {
             String movBinary = "";
             String movBinaryExtra = "";
             mov++; // min dist = 1,
-            if(mov ==1){movBinary = "00000";}
+            if(mov == 1){movBinary = "00000";}
             if(mov == 2){movBinary = "00001";}
             if(mov == 3){movBinary = "00010";}
             if(mov == 4){movBinary = "00011";}
@@ -298,11 +324,10 @@ class Huffman {
 
         // Длина ( + доп биты из таблицы ) + Смещение 5 бит ( + доп биты из таблицы ) 
 
-        
         return completeCoded;
     }
     private String toBitCount(String a, int cnt){
-        while(a.length() != cnt){
+        while(a.length() < cnt){
             a = "0" + a;
         }
         return a;
