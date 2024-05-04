@@ -25,7 +25,6 @@ class Deflate {
         LZ77 lz77coder = new LZ77();
         Huffman huff = new Huffman();
         try{
-            //BufferedInputStream fis = new BufferedInputStream(new FileInputStream(f));
             FileInputStream fis = new FileInputStream(f);
             FileOutputStream fos = new FileOutputStream(f+".dat");
             //int BLOCK_SIZE = 35000;
@@ -36,9 +35,8 @@ class Deflate {
                     break;
                 }
                 Vector<String> lz = lz77coder.lz77code(buff);
-                List<Byte> done = huff.code(lz, true);
+                List<Byte> done = huff.code(lz);
                 for(byte x : done){
-                    System.out.println(x);
                     fos.write(x);
                 }
             }
@@ -57,7 +55,7 @@ class Deflate {
         try{
             FileInputStream fis = new FileInputStream(f+".dat");
             FileOutputStream fos = new FileOutputStream("temp.dat");
-            huff.decode(fis,fos);
+            ArrayList<String> data = huff.decode(fis);
             fis.close();
             fos.close();
         }catch(Exception e){
@@ -82,7 +80,7 @@ class LZ77{
                 currentMatch += indx;
                 matchIndex = tempIndex;
             } else {
-                String codedString = "~~~~~~~~~~~~"+matchIndex+"~"+currentMatch.length();     // кодировка строки под размер ( костыль )
+                String codedString = matchIndex+"~"+currentMatch.length();     // кодировка строки под размер ( костыль )
                 for(int q = 1; q <= 12; q++){
                     if(codedString.length() > 15){
                         codedString = codedString.substring(1);
@@ -98,23 +96,10 @@ class LZ77{
                 } else {                                                          // разбор буфера ( костыль )
                     currentMatch = concat; matchIndex = -1;
                     while (currentMatch.length() > 1 && matchIndex == -1) {
-                        if(!currentMatch.startsWith("~")){
-                            ans2.add(String.valueOf(currentMatch.charAt(0)));
-                            searchBuffer.append(currentMatch.charAt(0));
-                            currentMatch = currentMatch.substring(1, currentMatch.length());
-                            matchIndex = searchBuffer.indexOf(currentMatch);
-                        }else{
-                            if(currentMatch.length() == 16){
-                                ans2.add(String.valueOf(currentMatch.substring(0,15)));
-                                ans2.add(String.valueOf(currentMatch.substring(15,16)));
-                                currentMatch = currentMatch.substring(15, currentMatch.length());
-                                matchIndex = searchBuffer.indexOf(currentMatch);
-                            }else{
-                                ans2.add(String.valueOf(currentMatch));
-                                currentMatch = currentMatch.substring(15, currentMatch.length());
-                                matchIndex = searchBuffer.indexOf(currentMatch);
-                            }
-                        }
+                        ans2.add(String.valueOf(currentMatch.charAt(0)));
+                        searchBuffer.append(currentMatch.charAt(0));
+                        currentMatch = currentMatch.substring(1, currentMatch.length());
+                        matchIndex = searchBuffer.indexOf(currentMatch); 
                     }
                 }
             }
@@ -123,22 +108,6 @@ class LZ77{
             ans2.add(currentMatch.substring(0, 1));
             currentMatch = currentMatch.substring(1);
         }
-        
-        /*
-        System.out.println(currentMatch);
-        if(currentMatch.length() == 1){
-            ans2.add(currentMatch);
-        }
-        if (matchIndex != -1) {                                                                 // если застряло в конце
-            String codedString = "~~~~~~~~~~~~"+matchIndex+"~"+currentMatch.length();
-                for(int q = 1; q <= 12; q++){
-                    if(codedString.length() > 15){
-                        codedString = codedString.substring(1);
-                    }
-                }
-            if(matchIndex != 0) ans2.add(codedString);
-        }*/
-
         return ans2;
         
     }
@@ -149,38 +118,120 @@ class LZ77{
 }
 class Huffman {
 
-    public List<Byte> code(Vector<String>data, boolean end){
+    public List<Byte> code(Vector<String>data){
         List<Byte> block = new ArrayList<>();
         data.add("256");
-        String buffer = end ? "1" : "0";            // чтение справа налево
+        String buffer = "";
         for(String s : data){
-            buffer =  buffer + getCode(s);
+            buffer += getCode(s); 
             while (buffer.length() > 8) {
-                block.add((byte)Integer.parseInt(buffer.substring(0, 9),2));
-                buffer = buffer.substring(9);
+                block.add((byte)Integer.parseInt(buffer.substring(0, 8),2));
+                buffer = buffer.substring(8);
             }
         }
         if(buffer.length() != 0){
             buffer = toBitCount(buffer, 8);
         }
-        block.add((byte)Integer.parseInt(buffer));
+        //block.add((byte)Integer.parseInt(buffer));
+                                                    // 10010001 10010010 10010011 10010100 00000000
+                                                    // 
+                                                    // 10010001 10010001 10010001 0000001 00000 10010010 0000000
+        //System.out.println(block);                // 
+        System.out.println(buffer);
         return block;
     }
-
-    public void decode(FileInputStream fis, FileOutputStream fos){
+    private ArrayList<String> decoded = new ArrayList<>();
+    public ArrayList<String> decode(FileInputStream fis){
         int b = 0;
         ///////////////
+        StringBuffer data = new StringBuffer(); 
         try{
             while ((b = fis.read()) != -1){
-                    System.out.println(b);
-            }   
+                data.append(toBitCount(Integer.toBinaryString(b), 8));
+                if(b == 0){
+                    data = flushData(data);
+                }
+            }        // TODO Слить остатки и перекод
         }catch(Exception e){
             System.out.println("error reading a byte");
         }
+        
+        return decoded;
+    }
+
+    public StringBuffer flushData(StringBuffer data){
+        int i = 0;
+        while (i < data.length()) {
+            if (i + 9 <= data.length() && inRange(data, i, 9,1)) {
+                String code = data.substring(i, i + 9);
+                decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 256)));
+                i += 9;
+
+                // TODO Экстра биты
+
+            } else if (i + 8 <= data.length() && inRange(data, i, 8,1)) {
+                String code = data.substring(i, i + 8);
+                System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) - 0x30)));
+                decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 0x30)));
+                i += 8;
+            }else if (i + 8 <= data.length() && inRange(data, i, 8,2)) {
+                String code = data.substring(i, i + 8);
+                System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) + 88))); // - 88
+                decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 88)));
+                i += 8;
+            }else if (i + 7 <= data.length() && inRange(data, i, 7,1)) { // -256
+                String code = data.substring(i, i + 7);
+                System.out.println("7-bit code: " + String.valueOf((Integer.parseInt(code,2) + 256)));
+                int a = Integer.parseInt(code,2) - 256;
+                if(a == 256){
+                    decoded.add("EOB");
+                }else{
+                    int extraBits = lenExtraBits(a);
+
+                }
+
+                i += 7;
+            } else {
+                break;
+            }
+        }
+        return data;
+    }
+
+    private int lenExtraBits(int litValue){
+        if(litValue <= 264) return 0;
+        if(litValue >= 265 && litValue <= 268) return 1;
+        if(litValue >= 269 && litValue <= 272) return 2;
+        if(litValue >= 273 && litValue <= 276) return 3;
+        if(litValue >= 277 && litValue <= 279) return 4;
+        System.out.println("ERROR IN LENEXTRABITS");
+        return 0;
     }
 
 
-
+    private boolean inRange(StringBuffer encodedString, int i, int length, int typeOf8Bit) {
+        if (i + length > encodedString.length()) {
+            return false;
+        }
+        int start_7_bit = 0b0000000;
+        int end_7_bit = 0b0010111;
+        int start_8_bit1 = 0b00110000;
+        int end_8_bit1 = 0b10111111;
+        int start_8_bit2 = 0b11000000;
+        int end_8_bit2 = 0b11000111;
+        int start_9_bit = 0b110010000;
+        int end_9_bit = 0b111111111;
+        int litCode = Integer.parseInt(encodedString.substring(i, i + length),2);
+        switch (length) {
+            case 7:
+                return ((litCode >= start_7_bit )&&(litCode <= end_7_bit));
+            case 8:
+                return typeOf8Bit == 1 ? ((litCode >= start_8_bit1)&&(litCode <= end_8_bit1)) : ((litCode >= start_8_bit2)&&(litCode <= end_8_bit2));
+            case 9:
+                return ((litCode >= start_9_bit )&&(litCode <= end_9_bit));
+        }
+        return false;
+    }
 
     public String getCode(String a){
         int litValue = 0;
