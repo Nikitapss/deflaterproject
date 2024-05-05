@@ -54,8 +54,13 @@ class Deflate {
         Huffman huff = new Huffman();
         try{
             FileInputStream fis = new FileInputStream(f+".dat");
-            FileOutputStream fos = new FileOutputStream("temp.dat");
+            FileOutputStream fos = new FileOutputStream(f+".decoded");
             ArrayList<String> data = huff.decode(fis);
+            String ready = lz77coder.lz77decode(data);
+            char[] almost = ready.toCharArray();
+            for(char k : almost){
+                fos.write(k);
+            }
             fis.close();
             fos.close();
         }catch(Exception e){
@@ -111,8 +116,69 @@ class LZ77{
         return ans2;
         
     }
-    public void lz77decode(){
-
+    public String lz77decode(ArrayList<String> list){
+        System.out.println(list);
+        Vector<String> data = new Vector<String>(list);
+        String complete = "";
+        for(int i = 0; i < data.size(); i++){
+            System.out.println(data.get(i));
+            if(data.get(i).length() > 3){
+                String[]buff = data.get(i).splitWithDelimiters("~", 0);
+                int len = getLen(buff[0], buff[2]);
+                int mov = getMove(buff[4], buff[6]); // смещение ( 0 или 1 мб проблемы ) // ВОЗВРАЩАЕТ СЧИТАЯ ЧТО ПЕРВЫЙ ИНДЕКС МАССИВА ЭТО 1
+                // insert element at i                                                   // Т.Е. ЕСЛИ СМЕЩЕНИЕ = 2, ЗНАЧИТ НУЖНО НУЖНО НАЧИНАТЬ СО ПЕРВОГО ЭЛЕМЕНТА ВКЛЮЧИТЕЛЬНО
+                // for длина : смещение j : инсерт j в i
+                mov--;
+                int cnt = i;
+                for(int k = mov; k < len+mov; k++){
+                    data.insertElementAt(data.get(k),cnt++);
+                }
+                data.remove(cnt);
+            }
+        }
+        for(String i : data){
+            complete += i;
+        }
+        return complete;
+    }
+    private int getLen(String main, String extra){
+        int[] code = {
+            257, 258, 259, 260, 261, 262, 263, 264, 265, 266,
+            267, 268, 269, 270, 271, 272, 273, 274, 275, 276,
+            277, 278, 279, 280, 281, 282, 283, 284, 285
+        };
+        int[] lengths = {
+            3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 
+            15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 
+            67, 83, 99, 115, 131, 163, 195, 227, 258
+        };
+        int baseLength = Integer.parseInt(main);
+        int extraLength = 0;
+        if(!extra.isEmpty()){
+            extraLength = Integer.parseInt(extra,2);
+        }
+        for(int i = 0; i < code.length; i++){
+            if(code[i] == baseLength){
+                extraLength += lengths[i];
+                return extraLength;
+            }
+        }
+        System.out.println("ERROR IN GET LEN");
+        return 0;
+    }
+    private int getMove(String main, String extra){
+        int[] distance = { 
+            1, 2, 3, 4, 5, 7, 9, 13, 17, 25,
+            33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 
+            1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
+        };
+        int baseCode = Integer.parseInt(main);
+        int extraDist = 0;
+        if(!extra.isEmpty()){
+            extraDist = Integer.parseInt(extra,2);
+        }
+        System.err.println(distance[baseCode] + extraDist);
+        return distance[baseCode] + extraDist;
     }
     
 }
@@ -132,15 +198,15 @@ class Huffman {
         if(buffer.length() != 0){
             buffer = toBitCount(buffer, 8);
         }
-        //block.add((byte)Integer.parseInt(buffer));
+        block.add((byte)Integer.parseInt(buffer));
                                                     // 10010001 10010010 10010011 10010100 00000000
                                                     // 
                                                     // 10010001 10010001 10010001 0000001 00000 10010010 0000000
         //System.out.println(block);                // 
-        System.out.println(buffer);
+        //System.out.println(block);
         return block;
     }
-    private ArrayList<String> decoded = new ArrayList<>();
+    public ArrayList<String> decoded = new ArrayList<>();
     public ArrayList<String> decode(FileInputStream fis){
         int b = 0;
         ///////////////
@@ -149,53 +215,64 @@ class Huffman {
             while ((b = fis.read()) != -1){
                 data.append(toBitCount(Integer.toBinaryString(b), 8));
                 if(b == 0){
-                    data = flushData(data);
+                    flushData(data);
+                    data.setLength(0);
                 }
-            }        // TODO Слить остатки и перекод
+            }        
         }catch(Exception e){
-            System.out.println("error reading a byte");
+            System.out.println("error reading a byte   " + e);
         }
-        
         return decoded;
     }
 
-    public StringBuffer flushData(StringBuffer data){
+    public void flushData(StringBuffer data){
         int i = 0;
+        try{
         while (i < data.length()) {
             if (i + 9 <= data.length() && inRange(data, i, 9,1)) {
                 String code = data.substring(i, i + 9);
                 decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 256)));
                 i += 9;
-
-                // TODO Экстра биты
-
             } else if (i + 8 <= data.length() && inRange(data, i, 8,1)) {
                 String code = data.substring(i, i + 8);
-                System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) - 0x30)));
+                //System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) - 0x30)));
                 decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 0x30)));
                 i += 8;
             }else if (i + 8 <= data.length() && inRange(data, i, 8,2)) {
                 String code = data.substring(i, i + 8);
-                System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) + 88))); // - 88
-                decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 88)));
-                i += 8;
+                //System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) + 88))); // - 88
+                //decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 88)));
+                int a = Integer.parseInt(code,2) + 88;
+                int lenExtraBits = lenExtraBits(a);
+                i += 8 + lenExtraBits;
+                String mov = data.substring(i, i + 5);
+                int movExtraBits = movExtraBits(mov);
+                i += 5 + movExtraBits;
+                decoded.add("~" + a + "~" + data.substring(i-5-movExtraBits-lenExtraBits, i-5-movExtraBits) + "~" + mov + "~" + data.substring(i-movExtraBits, i));
             }else if (i + 7 <= data.length() && inRange(data, i, 7,1)) { // -256
                 String code = data.substring(i, i + 7);
-                System.out.println("7-bit code: " + String.valueOf((Integer.parseInt(code,2) + 256)));
-                int a = Integer.parseInt(code,2) - 256;
+                //System.out.println("7-bit code: " + String.valueOf((Integer.parseInt(code,2) + 256)));
+                int a = Integer.parseInt(code,2) + 256; 
                 if(a == 256){
-                    decoded.add("EOB");
+                    //decoded.add("EOB");
+                    System.out.println(decoded);
+                    return;
                 }else{
-                    int extraBits = lenExtraBits(a);
-
+                    int lenExtraBits = lenExtraBits(a);
+                    i += 7 + lenExtraBits;
+                    String mov = data.substring(i, i + 5);
+                    int movExtraBits = movExtraBits(mov);
+                    i += 5 + movExtraBits;
+                    decoded.add(a + "~" + data.substring(i-5-movExtraBits-lenExtraBits, i-5-movExtraBits) + "~" + mov + "~" + data.substring(i-movExtraBits, i) + "~");
                 }
 
-                i += 7;
+                // i += 7 + extraBits;
             } else {
                 break;
             }
         }
-        return data;
+        }catch(Exception e){System.out.println("HERE");return;}
+        //System.out.println(decoded);
     }
 
     private int lenExtraBits(int litValue){
@@ -204,7 +281,26 @@ class Huffman {
         if(litValue >= 269 && litValue <= 272) return 2;
         if(litValue >= 273 && litValue <= 276) return 3;
         if(litValue >= 277 && litValue <= 279) return 4;
-        System.out.println("ERROR IN LENEXTRABITS");
+        System.out.println("ERROR IN LEN EXTRABITS");
+        return 0;
+    }
+    private int movExtraBits(String mov){
+        int movDecimal = Integer.parseInt(mov,2);
+        if(movDecimal <= 3) return 0;
+        if(movDecimal >= 4 && movDecimal <= 5) return 1;
+        if(movDecimal >= 6 && movDecimal <= 7) return 2;
+        if(movDecimal >= 8 && movDecimal <= 9) return 3;
+        if(movDecimal >= 10 && movDecimal <= 11) return 4;
+        if(movDecimal >= 12 && movDecimal <= 13) return 5;
+        if(movDecimal >= 14 && movDecimal <= 15) return 6;
+        if(movDecimal >= 16 && movDecimal <= 17) return 7;
+        if(movDecimal >= 18 && movDecimal <= 19) return 8;
+        if(movDecimal >= 20 && movDecimal <= 21) return 9;
+        if(movDecimal >= 22 && movDecimal <= 23) return 10;
+        if(movDecimal >= 24 && movDecimal <= 25) return 11;
+        if(movDecimal >= 26 && movDecimal <= 27) return 12;
+        if(movDecimal >= 28 && movDecimal <= 29) return 13;
+        System.out.println("ERROR IN MOV EXTRABITS");
         return 0;
     }
 
@@ -237,7 +333,7 @@ class Huffman {
         int litValue = 0;
         String completeCoded = "";
         if(a.equals("256")){
-            return "0000000";
+            return "00000000";
         }
         if(a.length() == 1){            // 0 - 255
             char[] buf = a.toCharArray();
@@ -359,6 +455,7 @@ class Huffman {
             //System.out.println(litValue + "/" + litBinary + "-" + dopBit + "-" + movBinary + "-" + movBinaryExtra);
             //System.out.println(" --- ");
             completeCoded = litBinary + dopBit + movBinary + movBinaryExtra;
+            System.out.println(completeCoded);
         }
         
         //  256 ignore
@@ -374,7 +471,7 @@ class Huffman {
         //  280 - 287     8 bit      от  11000000 до  11000111
 
         // Длина ( + доп биты из таблицы ) + Смещение 5 бит ( + доп биты из таблицы ) 
-
+        
         return completeCoded;
     }
     private String toBitCount(String a, int cnt){
