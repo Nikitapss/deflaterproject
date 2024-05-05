@@ -114,32 +114,50 @@ class LZ77{
             ans2.add(currentMatch.substring(0, 1));
             currentMatch = currentMatch.substring(1);
         }
-        System.out.println(ans2);
+        //System.out.println(ans2);
         return ans2;
         
     }
     public String lz77decode(ArrayList<String> list){
         //System.out.println(list);
-        Vector<String> data = new Vector<String>(list);
+        Vector<String> rawData = new Vector<String>(list);
         String complete = "";
-        
-        System.out.println(data);
-        for(int i = 0; i < data.size(); i++){
-            //System.out.println(data.get(i));
-            if(data.get(i).length() > 3){
-                String[]buff = data.get(i).splitWithDelimiters("~", 0);
-                int len = getLen(buff[0], buff[2]);
-                int mov = getMove(buff[4], buff[6]); // !!
-                mov--;
-                int cnt = i;
-                for(int k = mov; k < len+mov; k++){
-                    data.insertElementAt(data.get(k),cnt++);
-                }
-                data.remove(cnt);
+        ArrayList<Vector<String>> mainData = new ArrayList<Vector<String>>();
+        Vector<String> buffer = new Vector<String>();
+        for(String i : rawData){
+            if(!i.equals("EOB")){
+                buffer.add(i);
+            }else{
+                //System.out.println(buffer);
+                //mainData.add(buffer);
+                mainData.add(new Vector<>(buffer));
+                //System.out.println(mainData.get(0));
+                buffer.clear();
             }
         }
-        for(String i : data){
-            complete += i;
+        //System.out.println(data);
+        for(int o = 0; o < mainData.size(); o++){
+            Vector<String> data = mainData.get(o);
+            for(int i = 0; i < data.size(); i++){
+                //System.out.println(data.get(i));
+                if(data.get(i).length() > 3){
+                    String[]buff = data.get(i).splitWithDelimiters("~", 0);
+                    int len = getLen(buff[0], buff[2]);
+                    int mov = getMove(buff[4], buff[6]); // !!
+                    mov--;
+                    int cnt = i;
+                    for(int k = mov; k < len+mov; k++){
+                        data.insertElementAt(data.get(k),cnt++);
+                    }
+                    data.remove(cnt);
+                }
+            }
+            mainData.set(o, data);
+        }
+        for(Vector<String> o : mainData){
+            for(String i : o){
+                complete += i;
+            }
         }
         return complete;
     }
@@ -216,7 +234,7 @@ class Huffman {
             while ((b = fis.read()) != -1){
                 data.append(toBitCount(Integer.toBinaryString(b), 8));
             }
-            System.out.println(data);    
+            //System.out.println(data);    
             flushData(data);    
         }catch(Exception e){
             System.out.println("error reading a byte   " + e);
@@ -233,12 +251,12 @@ class Huffman {
                 i += 9;
             } else if (i + 8 <= data.length() && inRange(data, i, 8,1)) {
                 String code = data.substring(i, i + 8);
-                System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) - 0x30)) + " " + code);
+                //System.out.println("8-bit code: " + String.valueOf((char)(Integer.parseInt(code,2) - 0x30)) + " " + code);
                 decoded.add(String.valueOf((char)(Integer.parseInt(code,2) - 0x30)));
                 i += 8;
             }else if (i + 8 <= data.length() && inRange(data, i, 8,2)) {
                 String code = data.substring(i, i + 8);
-                System.out.println("8-bit code: " + (Integer.parseInt(code,2) + 88) + " " + code); // - 88
+                //System.out.println("8-bit code: " + (Integer.parseInt(code,2) + 88) + " " + code); // - 88
                 int a = Integer.parseInt(code,2) + 88;
                 int lenExtraBits = lenExtraBits(a);
                 i += 8 + lenExtraBits;
@@ -248,13 +266,20 @@ class Huffman {
                 decoded.add(a + "~" + data.substring(i-5-movExtraBits-lenExtraBits, i-5-movExtraBits) + "~" + mov + "~" + data.substring(i-movExtraBits, i) + "~");
             }else if (i + 7 <= data.length() && inRange(data, i, 7,1)) { // -256
                 String code = data.substring(i, i + 7);
-                System.out.println("7-bit code: " + String.valueOf((Integer.parseInt(code,2) + 256)) + " " + code);
+                //System.out.println("7-bit code: " + String.valueOf((Integer.parseInt(code,2) + 256)) + " " + code);
                 int a = Integer.parseInt(code,2) + 256; 
                 if(a == 256){
                     //decoded.add("EOB");
                     // System.out.println(decoded);
-                    return;
+                    i+=7;
+                    while(data.substring(0,i).length() % 8 != 0){
+                        i++;
+                    }
+                    decoded.add("EOB");
+                    //System.out.println(data.substring(i, i + 20));
+                    //return;
                 }else{
+                    //System.out.println(data.substring(i,i+15));
                     int lenExtraBits = lenExtraBits(a);
                     i += 7 + lenExtraBits;
                     String mov = data.substring(i, i + 5);
@@ -334,7 +359,7 @@ class Huffman {
         int litValue = 0;
         String completeCoded = "";
         if(a.equals("256")){
-            return "00000000";
+            return "0000000";
         }
         if(a.length() == 1){            // 0 - 255
             char[] buf = a.toCharArray();
